@@ -70,6 +70,56 @@ private func transcribeFile(from url: URL, locale: Locale) async throws -> Strin
     return resultText
 }
 
+// MARK: --- Raw data Transcription ------------------------------------------------
+
+@available(macOS 26.0, *)
+@_cdecl("sw_transcribeData")
+public func sw_transcribeData(
+    bytes: UnsafePointer<UInt8>?,
+    size: Int,
+    /// Number of bytes in the audio data buffer
+    cLocale: UnsafePointer<CChar>?,
+    /// C string representing the locale identifier
+    callback: TranscriptionCallback?,
+    /// Callback to receive the transcript or error message
+    userData: UnsafeRawPointer?
+) -> Int32 {
+    // Ensure we have valid audio data
+    guard let bytes = bytes, size > 0 else { return -1 }
+
+    // Convert the raw bytes into a Data object
+    let audioData = Data(bytes: bytes, count: size)
+    // Determine the locale (fallback to current)
+    let locale = cLocale.flatMap { Locale(identifier: String(cString: $0)) } ?? .current
+
+    Task {
+        // Create a temporary file URL
+        let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("tmp")
+        do {
+            // Write the audio data to disk
+            try audioData.write(to: tmpURL)
+            // Transcribe using the existing file-based function
+            let text = try await transcribeFile(from: tmpURL, locale: locale)
+            // Return the result via the callback
+            text.withCString { ptr in
+                if let cb = callback { cb(ptr, userData) }
+            }
+        } catch {
+            // Convert any error to a string and return it
+            let msg = "Error: \(error)"
+            msg.withCString { ptr in
+                if let cb = callback { cb(ptr, userData) }
+            }
+        }
+        // Clean up the temporary file
+        try? FileManager.default.removeItem(at: tmpURL)
+    }
+
+    return 0
+}
+
 // MARK: --- Microphone Transcription ------------------------------------------
 
 @available(macOS 26.0, *)

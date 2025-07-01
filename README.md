@@ -21,6 +21,22 @@ Starting with macOS Tahoe, the [SpeechAnalyzer](https://developer.apple.com/docu
     - On failure, sends an `"Error: …"` string instead
   - **Return**: `0` if the task was started, `-1` if no file path was provided
 
+- **Data Transcription**
+  Call `sw_transcribeData(const uint8_t *bytes, size_t size, const char *locale, TranscriptionCallback callback, void *userData)` to transcribe in‐memory audio data.
+  - **Inputs**:
+    - `bytes`: pointer to the raw audio data buffer
+    - `size`: number of bytes in the audio buffer
+    - `locale`: C‐string locale identifier (defaults to current locale if `NULL`)
+    - `callback`: C function of type `void (*)(const char *textOrError, void *userData)`
+    - `userData`: opaque pointer passed back in each callback
+  - **Behavior**:
+    - Copies the buffer into a temporary file on disk
+    - Reuses the existing file‐based transcription path (`transcribeFile`)
+    - On success, sends the full transcript to your callback
+    - On failure, sends an `"Error: …"` string instead
+    - Cleans up the temporary file when done
+  - **Return**: `0` if the task was started, `-1` if the buffer pointer is `NULL` or `size` is zero
+
 - **Live Microphone Transcription**
   Call `sw_startMicrophoneTranscription(const char *locale, TranscriptionCallback callback, void *userData)` to begin streaming live speech from the default mic.
   - **Inputs**: same as above, except no file path
